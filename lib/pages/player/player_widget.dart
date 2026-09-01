@@ -1,58 +1,93 @@
 import 'dart:async';
 
-import 'package:audio_service/audio_service.dart';
 import 'package:flutter/material.dart';
 import 'package:just_audio/just_audio.dart';
 
 import '../../models/catalog_models.dart';
 import '../../services/favorites_service.dart';
+import '../../services/playback_controller.dart';
 
 class PlayerWidget extends StatefulWidget {
   const PlayerWidget({
     super.key,
-    required this.concert,
-    required this.initialIndex,
+    this.concert,
+    this.initialIndex = 0,
+    this.queue,
+    this.startShuffled = false,
+    this.useCurrentQueue = false,
   });
 
-  final FullConcert concert;
+  const PlayerWidget.current({super.key})
+      : concert = null,
+        initialIndex = 0,
+        queue = null,
+        startShuffled = false,
+        useCurrentQueue = true;
+
+  final FullConcert? concert;
   final int initialIndex;
+  final List<PlaybackTrack>? queue;
+  final bool startShuffled;
+  final bool useCurrentQueue;
 
   @override
   State<PlayerWidget> createState() => _PlayerWidgetState();
 }
 
 class _PlayerWidgetState extends State<PlayerWidget> {
-  final AudioPlayer _player = AudioPlayer();
+  final PlaybackController _playback = PlaybackController.instance;
+  late final AudioPlayer _player = _playback.player;
   final FavoritesService _favoritesService = FavoritesService();
 
+  late List<PlaybackTrack> _queue;
   late int _currentIndex;
-  late StreamSubscription<PlayerState> _playerStateSubscription;
 
-  String? _error;
-  bool _changingSong = false;
   bool _isFavorite = false;
 
-  Song get _currentSong => widget.concert.songs[_currentIndex];
+  PlaybackTrack get _currentTrack =>
+      _playback.currentTrack ?? _queue[_currentIndex];
 
-  bool get _hasPrevious => _currentIndex > 0;
+  Song get _currentSong => _currentTrack.song;
 
-  bool get _hasNext => _currentIndex < widget.concert.songs.length - 1;
+  bool get _hasPrevious =>
+      _playback.hasTrack ? _playback.hasPrevious : _currentIndex > 0;
+
+  bool get _hasNext => _playback.hasTrack
+      ? _playback.hasNext
+      : _currentIndex < _queue.length - 1;
 
   @override
   void initState() {
     super.initState();
 
-    _currentIndex =
-        widget.initialIndex.clamp(0, widget.concert.songs.length - 1).toInt();
+    _queue = widget.queue ??
+        (widget.concert?.songs ?? const <Song>[])
+            .map((song) => PlaybackTrack(concert: widget.concert!, song: song))
+            .toList();
+    if (_queue.isEmpty && widget.useCurrentQueue) {
+      _queue = [_playback.currentTrack!];
+    }
+    _currentIndex = widget.initialIndex.clamp(0, _queue.length - 1).toInt();
+    _playback.setFullPlayerOpen(true);
+    _playback.addListener(_onPlaybackChanged);
+    if (!widget.useCurrentQueue) {
+      unawaited(
+        _playback.playQueue(
+          _queue,
+          initialIndex: widget.initialIndex,
+          shuffled: widget.startShuffled,
+        ),
+      );
+    }
+    unawaited(_loadFavoriteStatus());
+  }
 
-    _playerStateSubscription = _player.playerStateStream.listen((state) {
-      if (state.processingState == ProcessingState.completed &&
-          !_changingSong) {
-        _playNext();
-      }
-    });
+  void _onPlaybackChanged() {
+    if (mounted) setState(() {});
+  }
 
-    _loadCurrentSong(autoplay: true);
+  void _toggleShuffle() {
+    _playback.toggleShuffle();
   }
 
   Future<void> _loadFavoriteStatus() async {
@@ -79,79 +114,18 @@ class _PlayerWidgetState extends State<PlayerWidget> {
     });
   }
 
-  Future<void> _loadCurrentSong({
-    required bool autoplay,
-  }) async {
-    if (_changingSong) return;
-
-    _changingSong = true;
-    unawaited(_loadFavoriteStatus());
-
-    if (mounted) {
-      setState(() {
-        _error = null;
-      });
-    }
-
-    try {
-      await _player.stop();
-      await _player.setAudioSource(
-        AudioSource.uri(
-          Uri.parse(_currentSong.mp3),
-          tag: MediaItem(
-            id: _currentSong.mp3,
-            title: _currentSong.name,
-            artist: widget.concert.artist,
-            album: widget.concert.title,
-            artUri: widget.concert.albumImage.isNotEmpty
-                ? Uri.tryParse(widget.concert.albumImage)
-                : null,
-          ),
-        ),
-      );
-
-      if (autoplay) {
-        unawaited(_player.play());
-      }
-    } catch (error) {
-      if (mounted) {
-        setState(() {
-          _error = error.toString();
-        });
-      }
-    } finally {
-      _changingSong = false;
-    }
-  }
-
   Future<void> _playPrevious() async {
-    if (!_hasPrevious) return;
-
-    setState(() {
-      _currentIndex--;
-    });
-
-    await _loadCurrentSong(autoplay: true);
+    await _playback.playPrevious();
   }
 
   Future<void> _playNext() async {
-    if (!_hasNext) {
-      await _player.pause();
-      await _player.seek(Duration.zero);
-      return;
-    }
-
-    setState(() {
-      _currentIndex++;
-    });
-
-    await _loadCurrentSong(autoplay: true);
+    await _playback.playNext();
   }
 
   @override
   void dispose() {
-    _playerStateSubscription.cancel();
-    _player.dispose();
+    _playback.removeListener(_onPlaybackChanged);
+    _playback.setFullPlayerOpen(false);
     super.dispose();
   }
 
@@ -164,160 +138,177 @@ class _PlayerWidgetState extends State<PlayerWidget> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFF0D0D0D),
-      appBar: AppBar(
+    return PopScope(
+      onPopInvokedWithResult: (_, __) {
+        _playback.setFullPlayerOpen(false);
+      },
+      child: Scaffold(
         backgroundColor: const Color(0xFF0D0D0D),
-        foregroundColor: Colors.white,
-        title: const Text('Reproduciendo'),
-        actions: [
-          IconButton(
-            onPressed: _toggleFavorite,
-            tooltip: _isFavorite ? 'Quitar de favoritos' : 'Añadir a favoritos',
-            icon: Icon(
-              _isFavorite ? Icons.favorite : Icons.favorite_border,
-              color: _isFavorite ? Colors.redAccent : Colors.white,
+        appBar: AppBar(
+          backgroundColor: const Color(0xFF0D0D0D),
+          foregroundColor: Colors.white,
+          title: const Text('Reproduciendo'),
+          actions: [
+            IconButton(
+              onPressed: _toggleFavorite,
+              tooltip:
+                  _isFavorite ? 'Quitar de favoritos' : 'Añadir a favoritos',
+              icon: Icon(
+                _isFavorite ? Icons.favorite : Icons.favorite_border,
+                color: _isFavorite ? Colors.redAccent : Colors.white,
+              ),
             ),
-          ),
-        ],
-      ),
-      body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            children: [
-              const Spacer(),
-              ClipRRect(
-                borderRadius: BorderRadius.circular(20),
-                child: SizedBox(
-                  width: 300,
-                  height: 300,
-                  child: Image.network(
-                    widget.concert.albumImage,
-                    fit: BoxFit.cover,
-                    errorBuilder: (_, __, ___) {
-                      return Container(
-                        color: const Color(0xFF292929),
-                        child: const Icon(
-                          Icons.album,
-                          color: Colors.white70,
-                          size: 100,
-                        ),
-                      );
-                    },
-                  ),
-                ),
-              ),
-              const SizedBox(height: 28),
-              Text(
-                _currentSong.name,
-                textAlign: TextAlign.center,
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 24,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                widget.concert.artist,
-                textAlign: TextAlign.center,
-                style: const TextStyle(
-                  color: Colors.white60,
-                  fontSize: 16,
-                ),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                '${_currentIndex + 1} de '
-                '${widget.concert.songs.length}',
-                style: const TextStyle(
-                  color: Colors.white38,
-                ),
-              ),
-              const SizedBox(height: 26),
-              if (_error != null)
-                Text(
-                  'No se pudo reproducir:\n$_error',
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(
-                    color: Colors.redAccent,
-                  ),
-                )
-              else
-                _ProgressBar(
-                  player: _player,
-                  formatDuration: _formatDuration,
-                ),
-              const SizedBox(height: 20),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  IconButton(
-                    onPressed: _hasPrevious ? _playPrevious : null,
-                    iconSize: 44,
-                    color: Colors.white,
-                    disabledColor: Colors.white24,
-                    icon: const Icon(
-                      Icons.skip_previous_rounded,
-                    ),
-                  ),
-                  const SizedBox(width: 24),
-                  StreamBuilder<PlayerState>(
-                    stream: _player.playerStateStream,
-                    builder: (context, snapshot) {
-                      final state = snapshot.data;
-                      final processingState = state?.processingState;
-                      final playing = state?.playing ?? false;
-
-                      if (processingState == ProcessingState.loading ||
-                          processingState == ProcessingState.buffering) {
-                        return const SizedBox(
-                          width: 76,
-                          height: 76,
-                          child: Padding(
-                            padding: EdgeInsets.all(20),
-                            child: CircularProgressIndicator(),
+          ],
+        ),
+        body: SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              children: [
+                const Spacer(),
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(20),
+                  child: SizedBox(
+                    width: 300,
+                    height: 300,
+                    child: Image.network(
+                      _currentTrack.concert.albumImage,
+                      fit: BoxFit.cover,
+                      errorBuilder: (_, __, ___) {
+                        return Container(
+                          color: const Color(0xFF292929),
+                          child: const Icon(
+                            Icons.album,
+                            color: Colors.white70,
+                            size: 100,
                           ),
                         );
-                      }
-
-                      return IconButton.filled(
-                        onPressed: () {
-                          if (playing) {
-                            _player.pause();
-                          } else {
-                            _player.play();
-                          }
-                        },
-                        iconSize: 48,
-                        padding: const EdgeInsets.all(14),
-                        style: IconButton.styleFrom(
-                          backgroundColor: const Color(0xFF9D00FF),
-                          foregroundColor: Colors.white,
-                        ),
-                        icon: Icon(
-                          playing
-                              ? Icons.pause_rounded
-                              : Icons.play_arrow_rounded,
-                        ),
-                      );
-                    },
-                  ),
-                  const SizedBox(width: 24),
-                  IconButton(
-                    onPressed: _hasNext ? _playNext : null,
-                    iconSize: 44,
-                    color: Colors.white,
-                    disabledColor: Colors.white24,
-                    icon: const Icon(
-                      Icons.skip_next_rounded,
+                      },
                     ),
                   ),
-                ],
-              ),
-              const Spacer(),
-            ],
+                ),
+                const SizedBox(height: 28),
+                Text(
+                  _currentSong.name,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 24,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  _currentTrack.concert.artist,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                    color: Colors.white60,
+                    fontSize: 16,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  '${_playback.currentIndex + 1} de ${_playback.queueLength}',
+                  style: const TextStyle(
+                    color: Colors.white38,
+                  ),
+                ),
+                const SizedBox(height: 26),
+                if (_playback.error != null)
+                  Text(
+                    'No se pudo reproducir:\n${_playback.error}',
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(
+                      color: Colors.redAccent,
+                    ),
+                  )
+                else
+                  _ProgressBar(
+                    player: _player,
+                    formatDuration: _formatDuration,
+                  ),
+                const SizedBox(height: 20),
+                IconButton(
+                  onPressed: _toggleShuffle,
+                  tooltip: _playback.shuffleEnabled
+                      ? 'Desactivar reproducción aleatoria'
+                      : 'Reproducción aleatoria',
+                  icon: Icon(
+                    Icons.shuffle_rounded,
+                    color: _playback.shuffleEnabled
+                        ? const Color(0xFF9D00FF)
+                        : Colors.white60,
+                  ),
+                ),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    IconButton(
+                      onPressed: _hasPrevious ? _playPrevious : null,
+                      iconSize: 44,
+                      color: Colors.white,
+                      disabledColor: Colors.white24,
+                      icon: const Icon(
+                        Icons.skip_previous_rounded,
+                      ),
+                    ),
+                    const SizedBox(width: 24),
+                    StreamBuilder<PlayerState>(
+                      stream: _player.playerStateStream,
+                      builder: (context, snapshot) {
+                        final state = snapshot.data;
+                        final processingState = state?.processingState;
+                        final playing = state?.playing ?? false;
+
+                        if (processingState == ProcessingState.loading ||
+                            processingState == ProcessingState.buffering) {
+                          return const SizedBox(
+                            width: 76,
+                            height: 76,
+                            child: Padding(
+                              padding: EdgeInsets.all(20),
+                              child: CircularProgressIndicator(),
+                            ),
+                          );
+                        }
+
+                        return IconButton.filled(
+                          onPressed: () {
+                            if (playing) {
+                              _player.pause();
+                            } else {
+                              _player.play();
+                            }
+                          },
+                          iconSize: 48,
+                          padding: const EdgeInsets.all(14),
+                          style: IconButton.styleFrom(
+                            backgroundColor: const Color(0xFF9D00FF),
+                            foregroundColor: Colors.white,
+                          ),
+                          icon: Icon(
+                            playing
+                                ? Icons.pause_rounded
+                                : Icons.play_arrow_rounded,
+                          ),
+                        );
+                      },
+                    ),
+                    const SizedBox(width: 24),
+                    IconButton(
+                      onPressed: _hasNext ? _playNext : null,
+                      iconSize: 44,
+                      color: Colors.white,
+                      disabledColor: Colors.white24,
+                      icon: const Icon(
+                        Icons.skip_next_rounded,
+                      ),
+                    ),
+                  ],
+                ),
+                const Spacer(),
+              ],
+            ),
           ),
         ),
       ),

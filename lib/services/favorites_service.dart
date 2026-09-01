@@ -2,6 +2,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 class FavoritesService {
   static const String _storageKey = 'favorite_song_urls';
+  static const String _albumStorageKey = 'favorite_concert_identifiers';
 
   Future<Set<String>> loadFavorites() async {
     final preferences = await SharedPreferences.getInstance();
@@ -34,6 +35,28 @@ class FavoritesService {
       favorites.toList(),
     );
 
+    return isNowFavorite;
+  }
+
+  Future<Set<String>> loadFavoriteAlbums() async {
+    final preferences = await SharedPreferences.getInstance();
+    return (preferences.getStringList(_albumStorageKey) ?? []).toSet();
+  }
+
+  Future<bool> isFavoriteAlbum(String identifier) async {
+    return (await loadFavoriteAlbums()).contains(identifier);
+  }
+
+  Future<bool> toggleFavoriteAlbum(String identifier) async {
+    final preferences = await SharedPreferences.getInstance();
+    final favorites = await loadFavoriteAlbums();
+    final isNowFavorite = !favorites.contains(identifier);
+    if (isNowFavorite) {
+      favorites.add(identifier);
+    } else {
+      favorites.remove(identifier);
+    }
+    await preferences.setStringList(_albumStorageKey, favorites.toList());
     return isNowFavorite;
   }
 }

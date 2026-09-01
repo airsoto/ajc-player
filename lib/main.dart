@@ -8,6 +8,7 @@ import 'flutter_flow/flutter_flow_util.dart';
 import 'flutter_flow/nav/nav.dart';
 import 'index.dart';
 import 'package:just_audio_background/just_audio_background.dart';
+import 'components/mini_player.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -87,6 +88,15 @@ class _MyAppState extends State<MyApp> {
       ),
       themeMode: _themeMode,
       routerConfig: _router,
+      builder: (context, child) => Stack(
+        children: [
+          child ?? const SizedBox.shrink(),
+          const Align(
+            alignment: Alignment.bottomCenter,
+            child: MiniPlayer(),
+          ),
+        ],
+      ),
     );
   }
 }

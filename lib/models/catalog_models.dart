@@ -122,3 +122,15 @@ class FullConcert {
     );
   }
 }
+
+/// One song together with the concert it belongs to. This lets the player
+/// continue across concert boundaries when an entire artist is selected.
+class PlaybackTrack {
+  const PlaybackTrack({
+    required this.concert,
+    required this.song,
+  });
+
+  final FullConcert concert;
+  final Song song;
+}

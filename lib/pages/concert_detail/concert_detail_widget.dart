@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../models/catalog_models.dart';
 import '../../services/catalog_service.dart';
+import '../../services/favorites_service.dart';
 import '../player/player_widget.dart';
 
 class ConcertDetailWidget extends StatefulWidget {
@@ -88,7 +89,30 @@ class _ConcertDetailWidgetState extends State<ConcertDetailWidget> {
           return CustomScrollView(
             slivers: [
               SliverToBoxAdapter(
-                child: _ConcertHeader(concert: concert),
+                child: _ConcertHeader(
+                  concert: concert,
+                  onPlayAlbum: () {
+                    Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) => PlayerWidget(
+                          concert: concert,
+                          initialIndex: 0,
+                        ),
+                      ),
+                    );
+                  },
+                  onShuffleAlbum: () {
+                    Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) => PlayerWidget(
+                          concert: concert,
+                          initialIndex: 0,
+                          startShuffled: true,
+                        ),
+                      ),
+                    );
+                  },
+                ),
               ),
               SliverList.separated(
                 itemCount: concert.songs.length,
@@ -155,12 +179,44 @@ class _ConcertDetailWidgetState extends State<ConcertDetailWidget> {
   }
 }
 
-class _ConcertHeader extends StatelessWidget {
+class _ConcertHeader extends StatefulWidget {
   const _ConcertHeader({
     required this.concert,
+    required this.onPlayAlbum,
+    required this.onShuffleAlbum,
   });
 
   final FullConcert concert;
+  final VoidCallback onPlayAlbum;
+  final VoidCallback onShuffleAlbum;
+
+  @override
+  State<_ConcertHeader> createState() => _ConcertHeaderState();
+}
+
+class _ConcertHeaderState extends State<_ConcertHeader> {
+  final FavoritesService _favoritesService = FavoritesService();
+  bool _isFavoriteAlbum = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadFavoriteStatus();
+  }
+
+  Future<void> _loadFavoriteStatus() async {
+    final isFavorite = await _favoritesService.isFavoriteAlbum(
+      widget.concert.identifier,
+    );
+    if (mounted) setState(() => _isFavoriteAlbum = isFavorite);
+  }
+
+  Future<void> _toggleFavoriteAlbum() async {
+    final isFavorite = await _favoritesService.toggleFavoriteAlbum(
+      widget.concert.identifier,
+    );
+    if (mounted) setState(() => _isFavoriteAlbum = isFavorite);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -174,7 +230,7 @@ class _ConcertHeader extends StatelessWidget {
               width: 220,
               height: 220,
               child: Image.network(
-                concert.albumImage,
+                widget.concert.albumImage,
                 fit: BoxFit.cover,
                 errorBuilder: (_, __, ___) {
                   return Container(
@@ -191,7 +247,7 @@ class _ConcertHeader extends StatelessWidget {
           ),
           const SizedBox(height: 20),
           Text(
-            concert.title,
+            widget.concert.title,
             textAlign: TextAlign.center,
             style: const TextStyle(
               color: Colors.white,
@@ -201,7 +257,7 @@ class _ConcertHeader extends StatelessWidget {
           ),
           const SizedBox(height: 8),
           Text(
-            '${concert.artist} · ${concert.publicationDate}',
+            '${widget.concert.artist} · ${widget.concert.publicationDate}',
             textAlign: TextAlign.center,
             style: const TextStyle(
               color: Colors.white60,
@@ -209,10 +265,37 @@ class _ConcertHeader extends StatelessWidget {
           ),
           const SizedBox(height: 6),
           Text(
-            '${concert.songs.length} canciones',
+            '${widget.concert.songs.length} canciones',
             style: const TextStyle(
               color: Colors.white54,
             ),
+          ),
+          const SizedBox(height: 16),
+          Wrap(
+            alignment: WrapAlignment.center,
+            spacing: 12,
+            children: [
+              FilledButton.icon(
+                onPressed: widget.onPlayAlbum,
+                icon: const Icon(Icons.play_arrow_rounded),
+                label: const Text('Reproducir álbum'),
+              ),
+              OutlinedButton.icon(
+                onPressed: widget.onShuffleAlbum,
+                icon: const Icon(Icons.shuffle_rounded),
+                label: const Text('Aleatorio'),
+              ),
+              IconButton(
+                onPressed: _toggleFavoriteAlbum,
+                tooltip: _isFavoriteAlbum
+                    ? 'Quitar álbum de favoritos'
+                    : 'Añadir álbum a favoritos',
+                icon: Icon(
+                  _isFavoriteAlbum ? Icons.favorite : Icons.favorite_border,
+                  color: _isFavoriteAlbum ? Colors.redAccent : Colors.white,
+                ),
+              ),
+            ],
           ),
         ],
       ),

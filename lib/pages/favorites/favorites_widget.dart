@@ -4,6 +4,7 @@ import '../../models/catalog_models.dart';
 import '../../services/catalog_service.dart';
 import '../../services/favorites_service.dart';
 import '../player/player_widget.dart';
+import 'favorite_albums_widget.dart';
 
 class FavoritesWidget extends StatefulWidget {
   const FavoritesWidget({super.key});
@@ -65,6 +66,17 @@ class _FavoritesWidgetState extends State<FavoritesWidget> {
         backgroundColor: const Color(0xFF0D0D0D),
         foregroundColor: Colors.white,
         title: const Text('Favoritos'),
+        actions: [
+          IconButton(
+            tooltip: 'Álbumes favoritos',
+            icon: const Icon(Icons.album_outlined),
+            onPressed: () => Navigator.of(context).push(
+              MaterialPageRoute(
+                builder: (_) => const FavoriteAlbumsWidget(),
+              ),
+            ),
+          ),
+        ],
       ),
       body: FutureBuilder<List<_FavoriteSong>>(
         future: _favoritesFuture,
