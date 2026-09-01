@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:http/http.dart' as http;
+import 'package:flutter/services.dart' show rootBundle;
 
 import '../models/catalog_models.dart';
 
@@ -9,7 +10,11 @@ class CatalogService {
       'https://raw.githubusercontent.com/airsoto/vet/main/'
       'json/Aadam_Jacobs_Player_App';
 
-  static const String _artistsUrl = '$_baseUrl/index_artists_clean.json';
+  static const String _artistsUrl =
+      '$_baseUrl/index_artists_genres_final_clean.json';
+
+  static const String _bundledArtistsPath =
+      'assets/jsons/index_artists_genres_final_clean.json';
 
   static const String _concertsUrl =
       '$_baseUrl/_index_todos_los_conciertos.json';
@@ -17,18 +22,18 @@ class CatalogService {
   static List<FullConcert>? _concertsCache;
 
   Future<List<Artist>> fetchArtists() async {
-    final response = await http.get(Uri.parse(_artistsUrl));
+    late final List<dynamic> decoded;
 
-    if (response.statusCode != 200) {
-      throw Exception(
-        'No se pudo descargar el índice de artistas: '
-        '${response.statusCode}',
-      );
+    try {
+      final response = await http.get(Uri.parse(_artistsUrl));
+      if (response.statusCode != 200) {
+        throw Exception('HTTP ${response.statusCode}');
+      }
+      decoded = jsonDecode(utf8.decode(response.bodyBytes)) as List<dynamic>;
+    } catch (_) {
+      final bundledJson = await rootBundle.loadString(_bundledArtistsPath);
+      decoded = jsonDecode(bundledJson) as List<dynamic>;
     }
-
-    final decoded = jsonDecode(
-      utf8.decode(response.bodyBytes),
-    ) as List<dynamic>;
 
     return decoded.map((item) {
       return Artist.fromJson(

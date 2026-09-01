@@ -35,6 +35,7 @@ class ConcertSummary {
     required this.albumImage,
     required this.tracksCount,
     required this.url,
+    this.jsonFile = '',
   });
 
   final String identifier;
@@ -44,6 +45,7 @@ class ConcertSummary {
   final String albumImage;
   final int tracksCount;
   final String url;
+  final String jsonFile;
 
   factory ConcertSummary.fromJson(Map<String, dynamic> json) {
     return ConcertSummary(
@@ -54,6 +56,7 @@ class ConcertSummary {
       albumImage: json['imagen_disco']?.toString() ?? '',
       tracksCount: _toInt(json['tracks_count']),
       url: json['url']?.toString() ?? '',
+      jsonFile: json['json_file']?.toString() ?? '',
     );
   }
 }
@@ -64,15 +67,20 @@ class Artist {
     required this.slug,
     required this.totalConcerts,
     required this.concerts,
+    this.genres = const [],
+    this.primaryGenre = 'Other',
   });
 
   final String name;
   final String slug;
   final int totalConcerts;
   final List<ConcertSummary> concerts;
+  final List<String> genres;
+  final String primaryGenre;
 
   factory Artist.fromJson(Map<String, dynamic> json) {
     final concertList = json['concerts'] as List<dynamic>? ?? [];
+    final genreList = json['genres'] as List<dynamic>? ?? [];
 
     return Artist(
       name: json['artista']?.toString() ?? '',
@@ -82,6 +90,8 @@ class Artist {
           .whereType<Map<String, dynamic>>()
           .map(ConcertSummary.fromJson)
           .toList(),
+      genres: genreList.map((genre) => genre.toString()).toList(),
+      primaryGenre: json['primary_genre']?.toString() ?? 'Other',
     );
   }
 }

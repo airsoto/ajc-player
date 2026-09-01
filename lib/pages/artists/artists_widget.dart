@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 
+import '../../components/cassette_icon.dart';
 import '../../models/catalog_models.dart';
 import '../../services/catalog_service.dart';
+import '../about/about_app_dialog.dart';
 import '../artist_concerts/artist_concerts_widget.dart';
 import '../favorites/favorites_widget.dart';
 
@@ -20,6 +22,25 @@ class _ArtistsWidgetState extends State<ArtistsWidget> {
 
   late Future<List<Artist>> _artistsFuture;
   String _searchText = '';
+  String _selectedGenre = 'All';
+  bool _isGrid = false;
+
+  static const _genres = [
+    'All',
+    'Rock',
+    'Folk',
+    'Electronic',
+    'Country',
+    'Jazz',
+    'Hip-Hop',
+    'Experimental',
+    'Pop',
+    'Classical',
+    'World / Latin',
+    'Blues',
+    'Soul / R&B',
+    'Other',
+  ];
 
   @override
   void initState() {
@@ -35,10 +56,19 @@ class _ArtistsWidgetState extends State<ArtistsWidget> {
     await _artistsFuture;
   }
 
+  void _openArtist(Artist artist) {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => ArtistConcertsWidget(artist: artist),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFF0D0D0D),
+      drawer: _AppDrawer(onRefresh: _reload),
       appBar: AppBar(
         backgroundColor: const Color(0xFF0D0D0D),
         foregroundColor: Colors.white,
@@ -65,6 +95,11 @@ class _ArtistsWidgetState extends State<ArtistsWidget> {
         ),
         actions: [
           IconButton(
+            tooltip: _isGrid ? 'Mostrar como lista' : 'Mostrar en 3 columnas',
+            icon: Icon(_isGrid ? Icons.view_list_rounded : Icons.grid_view),
+            onPressed: () => setState(() => _isGrid = !_isGrid),
+          ),
+          IconButton(
             tooltip: 'Favoritos',
             icon: const Icon(Icons.favorite),
             onPressed: () {
@@ -77,33 +112,59 @@ class _ArtistsWidgetState extends State<ArtistsWidget> {
           ),
         ],
         bottom: PreferredSize(
-          preferredSize: const Size.fromHeight(72),
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
-            child: TextField(
-              onChanged: (value) {
-                setState(() {
-                  _searchText = value;
-                });
-              },
-              style: const TextStyle(color: Colors.white),
-              decoration: InputDecoration(
-                hintText: 'Buscar artista',
-                hintStyle: const TextStyle(
-                  color: Colors.white54,
-                ),
-                prefixIcon: const Icon(
-                  Icons.search,
-                  color: Colors.white54,
-                ),
-                filled: true,
-                fillColor: const Color(0xFF202020),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(14),
-                  borderSide: BorderSide.none,
+          preferredSize: const Size.fromHeight(128),
+          child: Column(
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
+                child: TextField(
+                  onChanged: (value) => setState(() => _searchText = value),
+                  style: const TextStyle(color: Colors.white),
+                  decoration: InputDecoration(
+                    hintText: 'Buscar artista o género',
+                    hintStyle: const TextStyle(color: Colors.white54),
+                    prefixIcon: const Icon(
+                      Icons.search,
+                      color: Colors.white54,
+                    ),
+                    filled: true,
+                    fillColor: const Color(0xFF202020),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(14),
+                      borderSide: BorderSide.none,
+                    ),
+                    isDense: true,
+                  ),
                 ),
               ),
-            ),
+              SizedBox(
+                height: 48,
+                child: ListView.separated(
+                  scrollDirection: Axis.horizontal,
+                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+                  itemCount: _genres.length,
+                  separatorBuilder: (_, __) => const SizedBox(width: 8),
+                  itemBuilder: (context, index) {
+                    final genre = _genres[index];
+                    final selected = genre == _selectedGenre;
+                    return ChoiceChip(
+                      label: Text(genre == 'All' ? 'Todos' : genre),
+                      selected: selected,
+                      selectedColor: const Color(0xFF8E24E9),
+                      backgroundColor: const Color(0xFF252525),
+                      side: BorderSide(
+                        color:
+                            selected ? const Color(0xFFB14CFF) : Colors.white24,
+                      ),
+                      labelStyle: const TextStyle(color: Colors.white),
+                      onSelected: (_) {
+                        setState(() => _selectedGenre = genre);
+                      },
+                    );
+                  },
+                ),
+              ),
+            ],
           ),
         ),
       ),
@@ -126,11 +187,21 @@ class _ArtistsWidgetState extends State<ArtistsWidget> {
           final artists = snapshot.data ?? [];
           final query = _searchText.trim().toLowerCase();
 
-          final filteredArtists = query.isEmpty
-              ? artists
-              : artists.where((artist) {
-                  return artist.name.toLowerCase().contains(query);
-                }).toList();
+          final filteredArtists = artists.where((artist) {
+            final matchesGenre = _selectedGenre == 'All' ||
+                artist.primaryGenre == _selectedGenre ||
+                artist.genres.any(
+                  (genre) =>
+                      genre.toLowerCase() == _selectedGenre.toLowerCase(),
+                );
+            final searchable = [
+              artist.name,
+              artist.primaryGenre,
+              ...artist.genres,
+            ].join(' ').toLowerCase();
+            return matchesGenre &&
+                (query.isEmpty || searchable.contains(query));
+          }).toList();
 
           if (artists.isEmpty) {
             return const Center(
@@ -141,65 +212,222 @@ class _ArtistsWidgetState extends State<ArtistsWidget> {
             );
           }
 
+          if (filteredArtists.isEmpty) {
+            return RefreshIndicator(
+              onRefresh: _reload,
+              child: ListView(
+                physics: const AlwaysScrollableScrollPhysics(),
+                children: const [
+                  SizedBox(height: 120),
+                  Icon(Icons.search_off, color: Colors.white54, size: 48),
+                  SizedBox(height: 12),
+                  Center(
+                    child: Text(
+                      'No hay artistas para esta búsqueda',
+                      style: TextStyle(color: Colors.white70),
+                    ),
+                  ),
+                ],
+              ),
+            );
+          }
+
           return RefreshIndicator(
             onRefresh: _reload,
-            child: ListView.separated(
-              padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
-              itemCount: filteredArtists.length,
-              separatorBuilder: (_, __) {
-                return const Divider(
-                  color: Color(0xFF292929),
-                  height: 1,
-                );
-              },
-              itemBuilder: (context, index) {
-                final artist = filteredArtists[index];
+            child: _isGrid
+                ? GridView.builder(
+                    padding: const EdgeInsets.fromLTRB(12, 12, 12, 96),
+                    gridDelegate:
+                        const SliverGridDelegateWithFixedCrossAxisCount(
+                      crossAxisCount: 3,
+                      crossAxisSpacing: 8,
+                      mainAxisSpacing: 8,
+                      childAspectRatio: 0.82,
+                    ),
+                    itemCount: filteredArtists.length,
+                    itemBuilder: (context, index) => _ArtistGridTile(
+                      artist: filteredArtists[index],
+                      onTap: () => _openArtist(filteredArtists[index]),
+                    ),
+                  )
+                : ListView.separated(
+                    padding: const EdgeInsets.fromLTRB(16, 8, 16, 96),
+                    itemCount: filteredArtists.length,
+                    separatorBuilder: (_, __) => const Divider(
+                      color: Color(0xFF292929),
+                      height: 1,
+                    ),
+                    itemBuilder: (context, index) {
+                      final artist = filteredArtists[index];
+                      return _ArtistListTile(
+                        artist: artist,
+                        onTap: () => _openArtist(artist),
+                      );
+                    },
+                  ),
+          );
+        },
+      ),
+    );
+  }
+}
 
-                return ListTile(
-                  contentPadding: const EdgeInsets.symmetric(
-                    horizontal: 4,
-                    vertical: 6,
-                  ),
-                  leading: CircleAvatar(
-                    backgroundColor: const Color(0xFF7C4DFF),
-                    foregroundColor: Colors.white,
-                    child: Text(
-                      artist.name.isNotEmpty
-                          ? artist.name[0].toUpperCase()
-                          : '?',
-                    ),
-                  ),
-                  title: Text(
-                    artist.name,
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                  subtitle: Text(
-                    '${artist.totalConcerts} conciertos',
-                    style: const TextStyle(
-                      color: Colors.white60,
-                    ),
-                  ),
-                  trailing: const Icon(
-                    Icons.chevron_right,
-                    color: Colors.white54,
-                  ),
-                  onTap: () {
-                    Navigator.of(context).push(
-                      MaterialPageRoute(
-                        builder: (_) => ArtistConcertsWidget(
-                          artist: artist,
+class _ArtistListTile extends StatelessWidget {
+  const _ArtistListTile({required this.artist, required this.onTap});
+
+  final Artist artist;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return ListTile(
+      contentPadding: const EdgeInsets.symmetric(horizontal: 4, vertical: 6),
+      leading: const CassetteIcon(),
+      title: Text(
+        artist.name,
+        style:
+            const TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
+      ),
+      subtitle: Text(
+        '${artist.totalConcerts} conciertos · ${artist.primaryGenre}',
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: const TextStyle(color: Colors.white60),
+      ),
+      trailing: const Icon(Icons.chevron_right, color: Colors.white54),
+      onTap: onTap,
+    );
+  }
+}
+
+class _ArtistGridTile extends StatelessWidget {
+  const _ArtistGridTile({required this.artist, required this.onTap});
+
+  final Artist artist;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: const Color(0xFF1B1B1B),
+      borderRadius: BorderRadius.circular(12),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(12),
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.all(10),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const CassetteIcon(size: 40),
+              const SizedBox(height: 8),
+              Text(
+                artist.name,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                '${artist.totalConcerts} conciertos',
+                textAlign: TextAlign.center,
+                style: const TextStyle(color: Colors.white60, fontSize: 11),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _AppDrawer extends StatelessWidget {
+  const _AppDrawer({required this.onRefresh});
+
+  final Future<void> Function() onRefresh;
+
+  @override
+  Widget build(BuildContext context) {
+    return Drawer(
+      backgroundColor: const Color(0xFF151515),
+      child: SafeArea(
+        child: Column(
+          children: [
+            const Padding(
+              padding: EdgeInsets.fromLTRB(20, 24, 20, 18),
+              child: Row(
+                children: [
+                  CassetteIcon(size: 52),
+                  SizedBox(width: 14),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'AJC Player',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 21,
+                          fontWeight: FontWeight.bold,
                         ),
                       ),
-                    );
-                  },
+                      Text(
+                        'Aadam Jacobs Collection',
+                        style: TextStyle(color: Colors.white60, fontSize: 12),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            const Divider(color: Colors.white12),
+            ListTile(
+              leading: const Icon(Icons.favorite, color: Colors.redAccent),
+              title: const Text('Favoritos',
+                  style: TextStyle(color: Colors.white)),
+              onTap: () {
+                Navigator.of(context).pop();
+                Navigator.of(context).push(
+                  MaterialPageRoute(builder: (_) => const FavoritesWidget()),
                 );
               },
             ),
-          );
-        },
+            ListTile(
+              leading: const Icon(Icons.refresh, color: Colors.white70),
+              title: const Text(
+                'Actualizar catálogo',
+                style: TextStyle(color: Colors.white),
+              ),
+              onTap: () async {
+                Navigator.of(context).pop();
+                await onRefresh();
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.info_outline, color: Color(0xFFB14CFF)),
+              title: const Text(
+                'Información de la app',
+                style: TextStyle(color: Colors.white),
+              ),
+              onTap: () {
+                Navigator.of(context).pop();
+                showAjcAboutDialog(context);
+              },
+            ),
+            const Spacer(),
+            const Padding(
+              padding: EdgeInsets.all(20),
+              child: Text(
+                'Independent non-profit project',
+                style: TextStyle(color: Colors.white38, fontSize: 12),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

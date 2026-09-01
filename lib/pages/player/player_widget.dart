@@ -272,24 +272,26 @@ class _PlayerWidgetState extends State<PlayerWidget> {
                           );
                         }
 
-                        return IconButton.filled(
-                          onPressed: () {
-                            if (playing) {
-                              _player.pause();
-                            } else {
-                              _player.play();
-                            }
-                          },
-                          iconSize: 48,
-                          padding: const EdgeInsets.all(14),
-                          style: IconButton.styleFrom(
-                            backgroundColor: const Color(0xFF9D00FF),
-                            foregroundColor: Colors.white,
-                          ),
-                          icon: Icon(
-                            playing
-                                ? Icons.pause_rounded
-                                : Icons.play_arrow_rounded,
+                        return Semantics(
+                          button: true,
+                          label: playing ? 'Pausar' : 'Reproducir',
+                          child: Material(
+                            color: const Color(0xFF9D00FF),
+                            shape: const CircleBorder(),
+                            clipBehavior: Clip.antiAlias,
+                            child: InkWell(
+                              onTap: _playback.togglePlayback,
+                              child: SizedBox.square(
+                                dimension: 76,
+                                child: Icon(
+                                  playing
+                                      ? Icons.pause_rounded
+                                      : Icons.play_arrow_rounded,
+                                  color: Colors.white,
+                                  size: 48,
+                                ),
+                              ),
+                            ),
                           ),
                         );
                       },
