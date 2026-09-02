@@ -26,6 +26,7 @@ class PlaybackController extends ChangeNotifier {
   int _currentIndex = 0;
   bool _changing = false;
   bool _shuffleEnabled = false;
+  final Set<String> _unavailableConcerts = <String>{};
   bool fullPlayerOpen = false;
   String? error;
 
@@ -36,7 +37,8 @@ class PlaybackController extends ChangeNotifier {
   int get queueLength => _queue.length;
   bool get shuffleEnabled => _shuffleEnabled;
   bool get isPlaying => player.playing;
-  bool get hasNext => _currentIndex < _queue.length - 1;
+  bool get hasNext =>
+      _currentIndex < _queue.length - 1 || (_shuffleEnabled && hasTrack);
   bool get hasPrevious => _currentIndex > 0;
 
   Future<void> playQueue(
@@ -51,10 +53,13 @@ class PlaybackController extends ChangeNotifier {
     _shuffleEnabled = shuffled;
     if (shuffled) _shuffleKeepingCurrentTrack();
     notifyListeners();
-    await _loadCurrentTrack(autoplay: true);
+    await _loadCurrentTrack(autoplay: true, skipRestrictedConcerts: true);
   }
 
-  Future<void> _loadCurrentTrack({required bool autoplay}) async {
+  Future<void> _loadCurrentTrack({
+    required bool autoplay,
+    bool skipRestrictedConcerts = false,
+  }) async {
     final track = currentTrack;
     if (track == null || _changing) return;
 
@@ -62,6 +67,7 @@ class PlaybackController extends ChangeNotifier {
     error = null;
     notifyListeners();
 
+    Object? playbackException;
     try {
       await player.stop();
       await player.setAudioSource(
@@ -80,10 +86,26 @@ class PlaybackController extends ChangeNotifier {
       );
       if (autoplay) unawaited(player.play());
     } catch (exception) {
-      error = exception.toString();
+      playbackException = exception;
+      error = _friendlyError(exception);
     } finally {
       _changing = false;
       notifyListeners();
+    }
+
+    if (playbackException != null &&
+        skipRestrictedConcerts &&
+        _isAccessDenied(playbackException)) {
+      _unavailableConcerts.add(track.concert.identifier);
+      final nextIndex = _nextAvailableConcertIndex();
+      if (nextIndex != null) {
+        _currentIndex = nextIndex;
+        notifyListeners();
+        await _loadCurrentTrack(
+          autoplay: autoplay,
+          skipRestrictedConcerts: true,
+        );
+      }
     }
   }
 
@@ -94,19 +116,31 @@ class PlaybackController extends ChangeNotifier {
       notifyListeners();
       return;
     }
-    _currentIndex++;
+    if (_currentIndex >= _queue.length - 1 && _shuffleEnabled) {
+      _queue.shuffle();
+      _currentIndex = 0;
+    } else {
+      _currentIndex++;
+    }
     notifyListeners();
-    await _loadCurrentTrack(autoplay: true);
+    await _loadCurrentTrack(autoplay: true, skipRestrictedConcerts: true);
   }
 
   Future<void> playPrevious() async {
     if (!hasPrevious) return;
     _currentIndex--;
     notifyListeners();
-    await _loadCurrentTrack(autoplay: true);
+    await _loadCurrentTrack(autoplay: true, skipRestrictedConcerts: true);
   }
 
   Future<void> togglePlayback() async {
+    if (error != null) {
+      await _loadCurrentTrack(
+        autoplay: true,
+        skipRestrictedConcerts: true,
+      );
+      return;
+    }
     if (player.playing) {
       await player.pause();
     } else {
@@ -128,6 +162,31 @@ class PlaybackController extends ChangeNotifier {
       ..shuffle();
     _queue = [current, ...remaining];
     _currentIndex = 0;
+  }
+
+  int? _nextAvailableConcertIndex() {
+    for (var offset = 1; offset < _queue.length; offset++) {
+      final index = (_currentIndex + offset) % _queue.length;
+      if (!_unavailableConcerts.contains(_queue[index].concert.identifier)) {
+        return index;
+      }
+    }
+    return null;
+  }
+
+  bool _isAccessDenied(Object exception) {
+    final message = exception.toString().toLowerCase();
+    return message.contains('-1102') ||
+        message.contains('403') ||
+        message.contains('permission') ||
+        message.contains('forbidden');
+  }
+
+  String _friendlyError(Object exception) {
+    if (_isAccessDenied(exception)) {
+      return 'This recording is currently restricted by Internet Archive.';
+    }
+    return 'The audio could not be loaded. Check your connection and try again.';
   }
 
   void setFullPlayerOpen(bool value) {

@@ -20,6 +20,12 @@ class CatalogService {
       '$_baseUrl/_index_todos_los_conciertos.json';
 
   static List<FullConcert>? _concertsCache;
+  static Future<List<FullConcert>>? _concertsRequest;
+
+  static void clearCache() {
+    _concertsCache = null;
+    _concertsRequest = null;
+  }
 
   Future<List<Artist>> fetchArtists() async {
     late final List<dynamic> decoded;
@@ -47,26 +53,57 @@ class CatalogService {
       return _concertsCache!;
     }
 
-    final response = await http.get(Uri.parse(_concertsUrl));
+    final activeRequest = _concertsRequest;
+    if (activeRequest != null) return activeRequest;
 
-    if (response.statusCode != 200) {
-      throw Exception(
-        'No se pudo descargar el índice de conciertos: '
-        '${response.statusCode}',
-      );
+    final request = _downloadConcerts();
+    _concertsRequest = request;
+    try {
+      final concerts = await request;
+      _concertsCache = concerts;
+      return concerts;
+    } finally {
+      _concertsRequest = null;
+    }
+  }
+
+  Future<List<FullConcert>> _downloadConcerts() async {
+    Object? lastError;
+
+    for (var attempt = 0; attempt < 3; attempt++) {
+      try {
+        final uri = attempt == 0
+            ? Uri.parse(_concertsUrl)
+            : Uri.parse(_concertsUrl).replace(
+                queryParameters: {
+                  'refresh': DateTime.now().millisecondsSinceEpoch.toString(),
+                },
+              );
+        final response = await http.get(uri);
+
+        if (response.statusCode != 200) {
+          throw Exception('HTTP ${response.statusCode}');
+        }
+
+        final decoded = jsonDecode(
+          utf8.decode(response.bodyBytes),
+        ) as List<dynamic>;
+
+        return decoded.map((item) {
+          return FullConcert.fromJson(
+            Map<String, dynamic>.from(item as Map),
+          );
+        }).toList();
+      } catch (error) {
+        lastError = error;
+        if (attempt < 2) {
+          await Future<void>.delayed(
+              Duration(milliseconds: 500 * (attempt + 1)));
+        }
+      }
     }
 
-    final decoded = jsonDecode(
-      utf8.decode(response.bodyBytes),
-    ) as List<dynamic>;
-
-    _concertsCache = decoded.map((item) {
-      return FullConcert.fromJson(
-        Map<String, dynamic>.from(item as Map),
-      );
-    }).toList();
-
-    return _concertsCache!;
+    throw Exception('The concert catalog could not be downloaded: $lastError');
   }
 
   Future<FullConcert?> fetchConcertByIdentifier(

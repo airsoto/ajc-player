@@ -65,10 +65,10 @@ class _FavoritesWidgetState extends State<FavoritesWidget> {
       appBar: AppBar(
         backgroundColor: const Color(0xFF0D0D0D),
         foregroundColor: Colors.white,
-        title: const Text('Favoritos'),
+        title: const Text('Favourites'),
         actions: [
           IconButton(
-            tooltip: 'Álbumes favoritos',
+            tooltip: 'Favourite albums',
             icon: const Icon(Icons.album_outlined),
             onPressed: () => Navigator.of(context).push(
               MaterialPageRoute(
@@ -92,7 +92,7 @@ class _FavoritesWidgetState extends State<FavoritesWidget> {
               child: Padding(
                 padding: const EdgeInsets.all(24),
                 child: Text(
-                  'No se pudieron cargar los favoritos:\n'
+                  'Favourites could not be loaded:\n'
                   '${snapshot.error}',
                   textAlign: TextAlign.center,
                   style: const TextStyle(color: Colors.white),
@@ -117,7 +117,7 @@ class _FavoritesWidgetState extends State<FavoritesWidget> {
                     ),
                     SizedBox(height: 16),
                     Text(
-                      'Todavía no tienes canciones favoritas',
+                      'You do not have any favourite songs yet',
                       textAlign: TextAlign.center,
                       style: TextStyle(
                         color: Colors.white70,

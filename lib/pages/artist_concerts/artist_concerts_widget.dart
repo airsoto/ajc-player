@@ -43,7 +43,7 @@ class _ArtistConcertsWidgetState extends State<ArtistConcertsWidget> {
       if (!mounted) return;
       if (queue.isEmpty) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('No hay canciones disponibles.')),
+          const SnackBar(content: Text('No playable songs were found.')),
         );
         return;
       }
@@ -84,22 +84,24 @@ class _ArtistConcertsWidgetState extends State<ArtistConcertsWidget> {
                         ? null
                         : () => _playArtist(shuffled: false),
                     icon: const Icon(Icons.play_arrow_rounded),
-                    label: const Text('Reproducir artista'),
+                    label: const Text('Play artist'),
                   ),
                 ),
                 const SizedBox(width: 12),
-                IconButton.filledTonal(
-                  onPressed: _loadingArtistQueue
-                      ? null
-                      : () => _playArtist(shuffled: true),
-                  tooltip: 'Reproducir artista en aleatorio',
-                  icon: _loadingArtistQueue
-                      ? const SizedBox(
-                          width: 20,
-                          height: 20,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
-                      : const Icon(Icons.shuffle_rounded),
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: _loadingArtistQueue
+                        ? null
+                        : () => _playArtist(shuffled: true),
+                    icon: _loadingArtistQueue
+                        ? const SizedBox(
+                            width: 18,
+                            height: 18,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Icon(Icons.radio),
+                    label: const Text('Artist radio'),
+                  ),
                 ),
               ],
             ),
@@ -149,7 +151,7 @@ class _ArtistConcertsWidgetState extends State<ArtistConcertsWidget> {
                   ),
                   subtitle: Text(
                     '${concert.publicationDate} · '
-                    '${concert.tracksCount} canciones',
+                    '${concert.tracksCount} songs',
                     style: const TextStyle(
                       color: Colors.white60,
                     ),

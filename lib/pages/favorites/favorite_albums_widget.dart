@@ -42,7 +42,7 @@ class _FavoriteAlbumsWidgetState extends State<FavoriteAlbumsWidget> {
         appBar: AppBar(
           backgroundColor: const Color(0xFF0D0D0D),
           foregroundColor: Colors.white,
-          title: const Text('Álbumes favoritos'),
+          title: const Text('Favourite albums'),
         ),
         body: FutureBuilder<List<FullConcert>>(
           future: _albumsFuture,
@@ -54,7 +54,7 @@ class _FavoriteAlbumsWidgetState extends State<FavoriteAlbumsWidget> {
             if (albums.isEmpty) {
               return const Center(
                 child: Text(
-                  'Todavía no tienes álbumes favoritos.',
+                  'You do not have any favourite albums yet.',
                   style: TextStyle(color: Colors.white70),
                 ),
               );
@@ -95,7 +95,7 @@ class _FavoriteAlbumsWidgetState extends State<FavoriteAlbumsWidget> {
                       ),
                     ),
                     subtitle: Text(
-                      '${album.artist} · ${album.songs.length} canciones',
+                      '${album.artist} · ${album.songs.length} songs',
                       style: const TextStyle(color: Colors.white60),
                     ),
                     trailing: const Icon(

@@ -147,12 +147,12 @@ class _PlayerWidgetState extends State<PlayerWidget> {
         appBar: AppBar(
           backgroundColor: const Color(0xFF0D0D0D),
           foregroundColor: Colors.white,
-          title: const Text('Reproduciendo'),
+          title: const Text('Now Playing'),
           actions: [
             IconButton(
               onPressed: _toggleFavorite,
               tooltip:
-                  _isFavorite ? 'Quitar de favoritos' : 'Añadir a favoritos',
+                  _isFavorite ? 'Remove from favourites' : 'Add to favourites',
               icon: Icon(
                 _isFavorite ? Icons.favorite : Icons.favorite_border,
                 color: _isFavorite ? Colors.redAccent : Colors.white,
@@ -208,7 +208,7 @@ class _PlayerWidgetState extends State<PlayerWidget> {
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  '${_playback.currentIndex + 1} de ${_playback.queueLength}',
+                  '${_playback.currentIndex + 1} of ${_playback.queueLength}',
                   style: const TextStyle(
                     color: Colors.white38,
                   ),
@@ -216,7 +216,7 @@ class _PlayerWidgetState extends State<PlayerWidget> {
                 const SizedBox(height: 26),
                 if (_playback.error != null)
                   Text(
-                    'No se pudo reproducir:\n${_playback.error}',
+                    'Unable to play:\n${_playback.error}',
                     textAlign: TextAlign.center,
                     style: const TextStyle(
                       color: Colors.redAccent,
@@ -231,8 +231,8 @@ class _PlayerWidgetState extends State<PlayerWidget> {
                 IconButton(
                   onPressed: _toggleShuffle,
                   tooltip: _playback.shuffleEnabled
-                      ? 'Desactivar reproducción aleatoria'
-                      : 'Reproducción aleatoria',
+                      ? 'Disable continuous shuffle'
+                      : 'Continuous shuffle',
                   icon: Icon(
                     Icons.shuffle_rounded,
                     color: _playback.shuffleEnabled
@@ -274,7 +274,7 @@ class _PlayerWidgetState extends State<PlayerWidget> {
 
                         return Semantics(
                           button: true,
-                          label: playing ? 'Pausar' : 'Reproducir',
+                          label: playing ? 'Pause' : 'Play',
                           child: Material(
                             color: const Color(0xFF9D00FF),
                             shape: const CircleBorder(),

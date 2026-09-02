@@ -40,7 +40,7 @@ class _ConcertDetailWidgetState extends State<ConcertDetailWidget> {
       appBar: AppBar(
         backgroundColor: const Color(0xFF0D0D0D),
         foregroundColor: Colors.white,
-        title: const Text('Concierto'),
+        title: const Text('Concert'),
       ),
       body: FutureBuilder<FullConcert?>(
         future: _concertFuture,
@@ -53,7 +53,7 @@ class _ConcertDetailWidgetState extends State<ConcertDetailWidget> {
                   CircularProgressIndicator(),
                   SizedBox(height: 16),
                   Text(
-                    'Cargando canciones…',
+                    'Loading songs…',
                     style: TextStyle(color: Colors.white70),
                   ),
                 ],
@@ -66,7 +66,7 @@ class _ConcertDetailWidgetState extends State<ConcertDetailWidget> {
               child: Padding(
                 padding: const EdgeInsets.all(24),
                 child: Text(
-                  'No se pudo cargar el concierto:\n'
+                  'The concert could not be loaded:\n'
                   '${snapshot.error}',
                   textAlign: TextAlign.center,
                   style: const TextStyle(color: Colors.white),
@@ -80,7 +80,7 @@ class _ConcertDetailWidgetState extends State<ConcertDetailWidget> {
           if (concert == null) {
             return const Center(
               child: Text(
-                'No se encontró el concierto',
+                'Concert not found',
                 style: TextStyle(color: Colors.white),
               ),
             );
@@ -265,7 +265,7 @@ class _ConcertHeaderState extends State<_ConcertHeader> {
           ),
           const SizedBox(height: 6),
           Text(
-            '${widget.concert.songs.length} canciones',
+            '${widget.concert.songs.length} songs',
             style: const TextStyle(
               color: Colors.white54,
             ),
@@ -278,18 +278,18 @@ class _ConcertHeaderState extends State<_ConcertHeader> {
               FilledButton.icon(
                 onPressed: widget.onPlayAlbum,
                 icon: const Icon(Icons.play_arrow_rounded),
-                label: const Text('Reproducir álbum'),
+                label: const Text('Play album'),
               ),
               OutlinedButton.icon(
                 onPressed: widget.onShuffleAlbum,
                 icon: const Icon(Icons.shuffle_rounded),
-                label: const Text('Aleatorio'),
+                label: const Text('Continuous shuffle'),
               ),
               IconButton(
                 onPressed: _toggleFavoriteAlbum,
                 tooltip: _isFavoriteAlbum
-                    ? 'Quitar álbum de favoritos'
-                    : 'Añadir álbum a favoritos',
+                    ? 'Remove album from favourites'
+                    : 'Add album to favourites',
                 icon: Icon(
                   _isFavoriteAlbum ? Icons.favorite : Icons.favorite_border,
                   color: _isFavoriteAlbum ? Colors.redAccent : Colors.white,
